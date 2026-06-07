@@ -1,0 +1,129 @@
+<script>
+  // Logs collapse/expand
+  let logsExpanded = false;
+
+  function toggleLogs() {
+    logsExpanded = !logsExpanded;
+    const container = document.getElementById('logs-container');
+    const controls = document.getElementById('logs-controls');
+    const chevron = document.getElementById('logs-chevron');
+    const header = document.getElementById('logs-header');
+
+    if (logsExpanded) {
+      container.classList.remove('hidden');
+      controls.classList.remove('hidden');
+      controls.classList.add('flex');
+      chevron.style.transform = 'rotate(90deg)';
+      header.classList.remove('rounded-b-xl');
+      header.classList.add('border-b', 'border-gray-700');
+    } else {
+      container.classList.add('hidden');
+      controls.classList.add('hidden');
+      controls.classList.remove('flex');
+      chevron.style.transform = 'rotate(0deg)';
+      header.classList.add('rounded-b-xl');
+      header.classList.remove('border-b', 'border-gray-700');
+    }
+  }
+
+  // Log level filtering
+  let currentLogLevel = 20;
+
+  // Maximum number of log elements to keep in DOM
+  const MAX_LOG_ELEMENTS = 500;
+
+  function setLogLevel(level) {
+    currentLogLevel = level;
+    // Update button styles
+    [20, 30, 40, 50].forEach((l) => {
+      const btn = document.getElementById('log-level-' + l);
+      if (btn) {
+        if (l === level) {
+          btn.className =
+            'px-2 py-0.5 text-[10px] font-medium rounded transition-all duration-200 bg-gray-700 text-gray-200 shadow-sm';
+        } else {
+          btn.className =
+            'px-2 py-0.5 text-[10px] font-medium rounded transition-all duration-200 text-gray-500 hover:text-gray-400 hover:bg-gray-800/50';
+        }
+      }
+    });
+    // Filter log lines
+    document.querySelectorAll('#logs-container > div[data-level]').forEach((el) => {
+      const logLevel = parseInt(el.getAttribute('data-level') || '0');
+      el.style.display = logLevel >= level ? '' : 'none';
+    });
+  }
+
+  // Apply filter to new log lines as they arrive (debounced)
+  const logsContainer = document.getElementById('logs-container');
+  if (logsContainer) {
+    let pendingNodes = [];
+    let debounceTimer = null;
+
+    function processPendingNodes() {
+      // Apply log level filter to pending nodes
+      pendingNodes.forEach((node) => {
+        if (node.nodeType === 1 && node.hasAttribute('data-level')) {
+          const logLevel = parseInt(node.getAttribute('data-level') || '0');
+          node.style.display = logLevel >= currentLogLevel ? '' : 'none';
+        }
+      });
+      pendingNodes = [];
+
+      // Trim excess DOM elements (keep only last MAX_LOG_ELEMENTS)
+      const logElements = logsContainer.querySelectorAll('div[data-level]');
+      const excess = logElements.length - MAX_LOG_ELEMENTS;
+      if (excess > 0) {
+        for (let i = 0; i < excess; i++) {
+          logElements[i].remove();
+        }
+      }
+    }
+
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          pendingNodes.push(node);
+        });
+      });
+
+      // Debounce processing - wait 50ms for more nodes before processing
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(processPendingNodes, 50);
+    });
+    observer.observe(logsContainer, { childList: true });
+  }
+
+  // Retry countdown timer
+  function updateRetryCountdowns() {
+    document.querySelectorAll('.retry-countdown').forEach((el) => {
+      const retryAt = el.getAttribute('data-retry-at');
+      if (!retryAt) return;
+      const retryTime = new Date(retryAt).getTime();
+      const now = Date.now();
+      const diffMs = retryTime - now;
+      if (diffMs <= 0) {
+        el.textContent = 'now';
+      } else {
+        const totalSecs = Math.ceil(diffMs / 1000);
+        const days = Math.floor(totalSecs / 86400);
+        const hours = Math.floor((totalSecs % 86400) / 3600);
+        const mins = Math.floor((totalSecs % 3600) / 60);
+        const secs = totalSecs % 60;
+        let text = 'in ';
+        if (days > 0) text += days + 'd ';
+        if (hours > 0) text += hours + 'h ';
+        if (mins > 0) text += mins + 'm ';
+        if (secs > 0 || totalSecs === 0) text += secs + 's';
+        el.textContent = text.trim();
+      }
+    });
+  }
+  setInterval(updateRetryCountdowns, 1000);
+  updateRetryCountdowns();
+
+  // Update retry countdowns after SSE swaps (icons handled by layout.scripts.txt)
+  document.body.addEventListener('htmx:afterSwap', () => {
+    updateRetryCountdowns();
+  });
+</script>
