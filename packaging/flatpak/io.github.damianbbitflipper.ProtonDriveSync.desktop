@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Proton Drive Sync
+Comment=Sync local directories to Proton Drive cloud storage
+Exec=proton-drive-sync
+Icon=io.github.damianbbitflipper.ProtonDriveSync
+Type=Application
+Terminal=true
+Categories=Utility;Network;FileTransfer;
