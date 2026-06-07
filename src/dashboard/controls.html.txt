@@ -1,0 +1,101 @@
+<div class="max-w-3xl mx-auto space-y-8">
+  <!-- Controls Section -->
+  <div>
+    <h2 class="text-2xl font-bold text-white mb-6">Controls</h2>
+
+    <!-- First row: Pause/Resume and Shut Down -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 [&:has(#stop-section:empty)]:lg:grid-cols-1">
+      <!-- Pause/Resume Sync -->
+      {{CONTROLS_PAUSE_CONTENT}}
+
+      <!-- Stop Service -->
+      <div id="stop-section" hx-swap="innerHTML" sse-swap="stop-section">
+        {{STOP_SECTION_CONTENT}}
+      </div>
+    </div>
+
+    <!-- Second row: Start on Login -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <!-- Start on Login Toggle -->
+      {{START_ON_LOGIN_SECTION}}
+    </div>
+  </div>
+
+  <!-- Settings Section -->
+  <div>
+    <h2 class="text-2xl font-bold text-white mb-6">Settings</h2>
+
+    <!-- CLI Hint -->
+    <div class="text-sm text-gray-400 bg-gray-800/50 rounded-lg px-4 py-3 border border-gray-700/50 mb-6">
+      Advanced configuration options are available via the <code class="text-gray-300 bg-gray-700 px-1.5 py-0.5 rounded">proton-drive-sync config</code> CLI command.
+    </div>
+
+    <div class="space-y-6">
+      <!-- Sync Concurrency -->
+      <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <h3 class="text-lg font-semibold text-white">Sync Concurrency</h3>
+          <div class="relative group">
+            {{ICON_INFO}}
+            <div
+              class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-xs text-gray-300 w-96 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10"
+            >
+              Number of files to upload/download simultaneously. Higher values may improve speed but
+              use more resources.
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-4">
+          <input
+            type="range"
+            id="sync-concurrency"
+            min="1"
+            max="16"
+            value="{{SYNC_CONCURRENCY}}"
+            class="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-proton"
+            oninput="document.getElementById('concurrency-value').textContent = this.value"
+            onchange="saveConfig()"
+          />
+          <span id="concurrency-value" class="w-8 text-center text-white font-mono">{{SYNC_CONCURRENCY}}</span>
+        </div>
+      </div>
+
+      <!-- Sync Directories -->
+      <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-white">Sync Directories</h3>
+          <button
+            hx-get="/api/modal/add-directory"
+            hx-target="body"
+            hx-swap="beforeend"
+            class="flex items-center gap-2 px-4 py-2 bg-proton hover:bg-proton-dark text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {{ICON_PLUS}}
+            Add Directory
+          </button>
+        </div>
+
+        <div id="sync-dirs-list" class="space-y-3">
+          {{SYNC_DIRS_HTML}}
+        </div>
+
+        <div id="no-dirs-message" class="hidden text-center py-2 text-gray-500">
+          <p>No sync directories configured</p>
+        </div>
+      </div>
+
+      <!-- Next Button (onboarding only) -->
+      <div class="flex justify-end gap-4 {{HIDE_NEXT_BUTTON}}">
+        <button
+          type="button"
+          hx-post="/api/complete-onboarding-controls"
+          hx-swap="none"
+          class="flex items-center gap-1 px-4 py-2 bg-proton hover:bg-proton-dark text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          Next
+          {{ICON_ARROW_RIGHT}}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
