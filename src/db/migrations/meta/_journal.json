@@ -1,0 +1,69 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1765125923420,
+      "tag": "0000_hot_whizzer",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1765126611481,
+      "tag": "0001_unique_invisible_woman",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1765127244619,
+      "tag": "0002_flowery_apocalypse",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1765134144461,
+      "tag": "0003_real_sharon_carter",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1765135788696,
+      "tag": "0004_wise_mockingbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1766509315783,
+      "tag": "0005_opposite_venom",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1766509400000,
+      "tag": "0006_content_hash_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1767830400000,
+      "tag": "0007_overlapping_sync_dirs",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1772265600000,
+      "tag": "0008_file_state_sha1",
+      "breakpoints": true
+    }
+  ]
+}
