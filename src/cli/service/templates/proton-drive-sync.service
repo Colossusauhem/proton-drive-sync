@@ -1,0 +1,19 @@
+[Unit]
+Description=Proton Drive Sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+{{USER_LINE}}
+ExecStart={{BIN_PATH}} start --no-daemon
+Restart=on-failure
+RestartSec=5
+Environment="HOME={{HOME}}"
+Environment="XDG_CONFIG_HOME={{HOME}}/.config"
+Environment="XDG_STATE_HOME={{HOME}}/.local/state"
+Environment="PATH={{HOME}}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="KEYRING_PASSWORD={{KEYRING_PASSWORD}}"
+
+[Install]
+WantedBy={{WANTED_BY}}
