@@ -1,0 +1,108 @@
+<script>
+  // Toast notification system
+  function showToast(message, type = 'success', duration = 3000) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+
+    const colors = {
+      success: 'bg-green-600 border-green-500',
+      error: 'bg-red-600 border-red-500',
+      info: 'bg-blue-600 border-blue-500',
+    };
+
+    const icons = {
+      success: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>',
+      error: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>',
+      info: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+    };
+
+    toast.className = `flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg text-white text-sm font-medium transform translate-x-full opacity-0 transition-all duration-300 ${colors[type] || colors.info}`;
+    toast.innerHTML = `
+      ${icons[type] || icons.info}
+      <span>${message}</span>
+    `;
+
+    container.appendChild(toast);
+
+    // Trigger animation - double rAF ensures the browser has painted the initial state
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-full', 'opacity-0');
+      });
+    });
+
+    // Auto dismiss
+    setTimeout(() => {
+      toast.classList.add('translate-x-full', 'opacity-0');
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  }
+
+  // Store ALL SSE EventSource references for cleanup (home page has two: /api/events and /api/logs)
+  const sseSources = new Set();
+
+  // Capture each EventSource when connections open
+  document.body.addEventListener('htmx:sseOpen', (e) => {
+    sseSources.add(e.detail.source);
+  });
+
+  // Close all SSE connections to prevent browser hanging on navigation
+  function closeAllSSE() {
+    sseSources.forEach((source) => source.close());
+    sseSources.clear();
+  }
+
+  // Event delegation for internal link clicks (works for dynamically added links too)
+  document.body.addEventListener('click', (e) => {
+    if (e.target.closest('a[href^="/"]')) {
+      closeAllSSE();
+    }
+  });
+
+  // Also close on page unload (e.g., refresh, external navigation)
+  window.addEventListener('beforeunload', closeAllSSE);
+
+  // Pulse the heartbeat dot on each heartbeat event
+  document.body.addEventListener('heartbeat-received', () => {
+    const ping = document.getElementById('heartbeat-ping');
+    if (ping) {
+      ping.classList.remove('opacity-0');
+      ping.classList.add('animate-ping', 'opacity-75');
+      setTimeout(() => {
+        ping.classList.remove('animate-ping', 'opacity-75');
+        ping.classList.add('opacity-0');
+      }, 500);
+    }
+  });
+
+  // Global spin manager - keeps .js-spin elements rotating smoothly across re-renders
+  (function () {
+    let rotation = 0;
+    let lastTime = performance.now();
+    const ROTATION_SPEED = 360; // degrees per second
+
+    function updateSpinners(currentTime) {
+      const spinners = document.querySelectorAll('.js-spin');
+
+      // Only calculate rotation if spinners exist (reduces CPU when idle)
+      if (spinners.length > 0) {
+        const deltaTime = (currentTime - lastTime) / 1000;
+        rotation = (rotation + ROTATION_SPEED * deltaTime) % 360;
+
+        spinners.forEach((el) => {
+          el.style.transform = `rotate(${rotation}deg)`;
+        });
+      }
+
+      lastTime = currentTime;
+      requestAnimationFrame(updateSpinners);
+    }
+
+    requestAnimationFrame(updateSpinners);
+  })();
+
+  // Listen for showToast events triggered by HX-Trigger headers
+  document.body.addEventListener('showToast', (e) => {
+    showToast(e.detail.message, e.detail.type, e.detail.duration || 3000);
+  });
+</script>
