@@ -1,0 +1,4 @@
+<script>
+  // About page - no custom JavaScript needed
+  // HTMX handles the "Start Using" button via hx-post
+</script>
