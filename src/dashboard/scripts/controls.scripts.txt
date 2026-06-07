@@ -1,0 +1,213 @@
+<script>
+  let syncDirs = {{SYNC_DIRS_JSON}};
+  let originalConfig = { sync_concurrency: {{SYNC_CONCURRENCY}}, sync_dirs: syncDirs };
+  const redirectAfterSave = '{{REDIRECT_AFTER_SAVE}}';
+
+  // Icons rendered server-side (using backticks to allow single quotes in SVG attributes)
+  const ICON_INFO = `{{ICON_INFO_SMALL}}`;
+  const ICON_TRASH = `{{ICON_TRASH}}`;
+
+  function renderSyncDirs() {
+    const container = document.getElementById('sync-dirs-list');
+    const noMessage = document.getElementById('no-dirs-message');
+
+    if (syncDirs.length === 0) {
+      container.innerHTML = '';
+      noMessage.classList.remove('hidden');
+      return;
+    }
+
+    noMessage.classList.add('hidden');
+    container.innerHTML = syncDirs
+      .map(
+        (dir, index) => `
+      <div class="flex items-center gap-3 p-4 bg-gray-900 border border-gray-700 rounded-lg group">
+        <div class="flex-1 grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Local Path</label>
+            <input
+              type="text"
+              value="${escapeHtml(dir.source_path)}"
+              onchange="updateSyncDir(${index}, 'source_path', this.value)"
+              placeholder="/path/to/local/directory"
+              class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-proton"
+            />
+          </div>
+          <div>
+            <div class="flex items-center gap-1 mb-1">
+              <label class="block text-xs text-gray-500">Remote Root</label>
+              <div class="relative group">
+                                ${ICON_INFO}
+                <div class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-xs text-gray-300 w-96 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                  The destination folder in Proton Drive. Must start with / indicating the base of the Proton Drive filesystem.
+                </div>
+              </div>
+            </div>
+            <input
+              type="text"
+              value="${escapeHtml(dir.remote_root || '/')}"
+              onchange="updateSyncDir(${index}, 'remote_root', this.value)"
+              placeholder="/"
+              class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white font-mono text-sm focus:outline-none focus:border-proton"
+            />
+          </div>
+        </div>
+        <button
+          onclick="removeSyncDir(${index})"
+          class="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+          title="Remove directory"
+        >
+                    ${ICON_TRASH}
+        </button>
+      </div>
+    `
+      )
+      .join('');
+  }
+
+  async function removeSyncDir(index) {
+    syncDirs.splice(index, 1);
+    renderSyncDirs();
+    await saveConfig();
+
+    // Show warning modal only when last directory was removed
+    if (syncDirs.length === 0) {
+      const modalResponse = await fetch('/api/modal/no-sync-dirs?redirect=' + encodeURIComponent(redirectAfterSave || ''));
+      const modalHtml = await modalResponse.text();
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+  }
+
+  function updateSyncDir(index, field, value) {
+    if (field === 'remote_root') {
+      const input = event.target;
+      if (value && !value.startsWith('/')) {
+        input.classList.add('border-red-500');
+        input.setCustomValidity('Remote root must start with /');
+        return;
+      } else {
+        input.classList.remove('border-red-500');
+        input.setCustomValidity('');
+      }
+    }
+    syncDirs[index][field] = value;
+  }
+
+  async function saveConfig() {
+    // Get valid directories (those with source_path)
+    const validDirs = syncDirs.filter((d) => d.source_path.trim());
+
+    const config = {
+      sync_concurrency: parseInt(document.getElementById('sync-concurrency').value) || 8,
+      sync_dirs: validDirs.map((d) => ({
+        source_path: d.source_path.trim(),
+        remote_root: d.remote_root?.trim() || '',
+      })),
+    };
+
+    try {
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Update local state
+        originalConfig = JSON.parse(JSON.stringify(config));
+        syncDirs = config.sync_dirs.length > 0 ? config.sync_dirs : [];
+        renderSyncDirs();
+
+        showToast('Config updated', 'success');
+      } else {
+        showToast(result.error || 'Failed to save settings', 'error', 5000);
+      }
+    } catch (err) {
+      showToast('Error saving settings', 'error', 5000);
+    }
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Listen for dir-added event from HTMX to sync JS state
+  document.body.addEventListener('dir-added', function (e) {
+    syncDirs = e.detail.dirs;
+    // Hide no-dirs message if we have dirs
+    const noMessage = document.getElementById('no-dirs-message');
+    if (syncDirs.length > 0) {
+      noMessage.classList.add('hidden');
+    }
+  });
+
+  // Listen for close-modal event from HTMX
+  document.body.addEventListener('close-modal', function () {
+    const modal = document.getElementById('add-dir-modal');
+    if (modal) modal.remove();
+  });
+
+  // Toggle service with smooth animation before server swap
+  async function toggleService(button) {
+    const section = document.getElementById('start-on-login-section');
+    const knob = button.querySelector('span');
+    const isCurrentlyEnabled = button.getAttribute('aria-checked') === 'true';
+
+    // Optimistically toggle the UI immediately for smooth animation
+    if (isCurrentlyEnabled) {
+      // Turning OFF: proton -> gray, knob moves left
+      button.classList.remove('bg-proton');
+      button.classList.add('bg-gray-600');
+      knob.classList.remove('translate-x-6');
+      knob.classList.add('translate-x-1');
+      button.setAttribute('aria-checked', 'false');
+    } else {
+      // Turning ON: gray -> proton, knob moves right
+      button.classList.remove('bg-gray-600');
+      button.classList.add('bg-proton');
+      knob.classList.remove('translate-x-1');
+      knob.classList.add('translate-x-6');
+      button.setAttribute('aria-checked', 'true');
+    }
+
+    // Wait for animation to complete (matches transition-transform duration)
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Now perform the server request and swap
+    try {
+      const response = await fetch('/api/toggle-service', { method: 'POST' });
+      if (response.ok) {
+        const html = await response.text();
+        section.outerHTML = html;
+      } else {
+        // Revert on error
+        revertToggle(button, knob, isCurrentlyEnabled);
+        showToast('Failed to toggle service', 'error', 3000);
+      }
+    } catch (err) {
+      // Revert on error
+      revertToggle(button, knob, isCurrentlyEnabled);
+      showToast('Error toggling service', 'error', 3000);
+    }
+  }
+
+  function revertToggle(button, knob, wasEnabled) {
+    if (wasEnabled) {
+      button.classList.add('bg-proton');
+      button.classList.remove('bg-gray-600');
+      knob.classList.add('translate-x-6');
+      knob.classList.remove('translate-x-1');
+      button.setAttribute('aria-checked', 'true');
+    } else {
+      button.classList.add('bg-gray-600');
+      button.classList.remove('bg-proton');
+      knob.classList.add('translate-x-1');
+      knob.classList.remove('translate-x-6');
+      button.setAttribute('aria-checked', 'false');
+    }
+  }
+</script>
