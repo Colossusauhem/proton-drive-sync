@@ -1,0 +1,88 @@
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="flex flex-col items-center justify-center min-h-[60vh] text-center">
+    <!-- Profile Image -->
+    <div class="mb-8">
+      <img
+        src="/assets/damian.jpg"
+        alt="Damian Barabonkov"
+        class="w-48 h-48 rounded-full object-cover border-4 border-white shadow-xl"
+      />
+    </div>
+
+    <!-- Made by -->
+    <h1 class="text-2xl sm:text-3xl mb-2">
+      <span class="text-gray-400">made by</span>
+      <span class="font-bold text-white">Damian Barabonkov</span>
+    </h1>
+
+    <!-- Subtitle -->
+    <p class="text-white text-base mb-2">
+      The <span class="underline">best way you can support me for free</span> is by<br />
+      following me on X and starring this repo.
+    </p>
+
+    <p class="text-gray-500 text-sm mb-6 flex items-center justify-center gap-1">
+      Not into socials? A coffee will do instead.
+      {{ICON_HEART}}
+    </p>
+
+    <!-- Badges -->
+    <div class="grid grid-cols-3 items-center gap-3 mb-4">
+      <!-- X (Twitter) Badge -->
+      <div class="flex justify-end">
+        <a
+          href="https://x.com/TheBitFlipper"
+          target="_blank"
+          class="h-9 flex items-center gap-2 px-3 bg-gray-900 border border-gray-600 rounded-full hover:border-gray-500 transition-colors"
+        >
+          <img src="/assets/x-logo.svg" alt="X" class="w-4 h-4" />
+          <span class="text-gray-300 text-sm font-medium">Follow</span>
+        </a>
+      </div>
+      <!-- GitHub Stars Badge (centered) -->
+      <div class="flex justify-center">
+        <a
+          href="https://github.com/DamianB-BitFlipper/proton-drive-sync"
+          target="_blank"
+          class="github-badge h-9 flex items-center gap-2 px-3 bg-gray-900 border border-gray-600 rounded-full hover:border-gray-500 transition-colors"
+        >
+          <img src="/assets/github.svg" alt="GitHub" class="w-4 h-4" />
+          <span class="text-gray-300 text-sm font-medium">GitHub</span>
+          {{ICON_STAR}}
+          <img
+            src="https://img.shields.io/github/stars/DamianB-BitFlipper/proton-drive-sync?style=flat&label=&color=1f2937"
+            alt="Stars"
+            class="h-5"
+          />
+        </a>
+      </div>
+      <!-- Buy Me a Coffee -->
+      <div class="flex justify-start">
+        <a href="https://www.buymeacoffee.com/thebitflipper" target="_blank">
+          <img
+            src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+            alt="Buy Me A Coffee"
+            class="h-9 w-auto"
+          />
+        </a>
+      </div>
+    </div>
+
+    <!-- Start Using Link (only shown during onboarding) -->
+    <div id="start-using-container" class="{{HIDE_START_BUTTON}} mt-2 mb-4">
+      <button
+        hx-post="/api/onboard"
+        hx-swap="none"
+        hx-disabled-elt="this"
+        id="start-using-button"
+        class="flex items-center bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium transition-colors px-4 py-2 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Start using
+        {{ICON_ROCKET}}
+      </button>
+    </div>
+
+    <!-- Version -->
+    <p class="text-gray-500 text-sm">Version <span class="font-mono">{{VERSION}}</span></p>
+  </div>
+</main>
