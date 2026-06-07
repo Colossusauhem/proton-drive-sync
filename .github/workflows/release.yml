@@ -1,0 +1,314 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.event_name == 'release'
+    strategy:
+      matrix:
+        include:
+          - os: macos-15
+            target: darwin-arm64
+          - os: macos-15-intel
+            target: darwin-x64
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+          - os: windows-latest
+            target: windows-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build binary (Unix)
+        if: runner.os != 'Windows'
+        run: bun build --compile --minify --target=bun-${{ matrix.target }} ./src/index.ts --outfile ./proton-drive-sync
+
+      - name: Build binary (Windows)
+        if: runner.os == 'Windows'
+        run: bun build --compile --minify --target=bun-${{ matrix.target }} ./src/index.ts --outfile ./proton-drive-sync.exe
+
+      - name: Create tarball (Unix)
+        if: runner.os != 'Windows'
+        run: tar -czvf proton-drive-sync-${{ matrix.target }}.tar.gz proton-drive-sync
+
+      - name: Create zip (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path proton-drive-sync.exe -DestinationPath proton-drive-sync-${{ matrix.target }}.zip
+
+      - name: Upload to release (Unix)
+        if: runner.os != 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: proton-drive-sync-${{ matrix.target }}.tar.gz
+
+      - name: Upload to release (Windows)
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: proton-drive-sync-${{ matrix.target }}.zip
+
+  package:
+    needs: build
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x64
+            deb_arch: amd64
+            rpm_arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            deb_arch: arm64
+            rpm_arch: aarch64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version and package name
+        id: version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
+
+          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+            echo "package_name=proton-drive-sync-prerelease" >> $GITHUB_OUTPUT
+          else
+            echo "package_name=proton-drive-sync" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download Linux ${{ matrix.arch }} artifact
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p artifacts
+          gh release download "v${VERSION}" -p "proton-drive-sync-linux-${{ matrix.arch }}.tar.gz" -D artifacts/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Extract binary
+        run: |
+          mkdir -p binaries
+          tar -xzf artifacts/proton-drive-sync-linux-${{ matrix.arch }}.tar.gz -C binaries/
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev rpm flatpak flatpak-builder
+          sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08
+
+      - name: Build .deb package
+        run: ./packaging/scripts/build-deb.sh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.deb_arch }}
+          BINARY_PATH: binaries/proton-drive-sync
+          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+
+      - name: Build .rpm package
+        run: ./packaging/scripts/build-rpm.sh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.rpm_arch }}
+          BINARY_PATH: binaries/proton-drive-sync
+          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+
+      - name: Build AppImage
+        run: ./packaging/scripts/build-appimage.sh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.arch == 'x64' && 'x86_64' || 'aarch64' }}
+          BINARY_PATH: binaries/proton-drive-sync
+          PRERELEASE: ${{ github.event.release.prerelease }}
+
+      - name: Build Flatpak
+        run: ./packaging/scripts/build-flatpak.sh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.arch == 'x64' && 'x86_64' || 'aarch64' }}
+          BINARY_PATH: binaries/proton-drive-sync
+          PRERELEASE: ${{ github.event.release.prerelease }}
+
+      - name: Upload packages to release
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release upload "v${VERSION}" \
+            ${{ steps.version.outputs.package_name }}_${VERSION}_${{ matrix.deb_arch }}.deb \
+            ${{ steps.version.outputs.package_name }}-*.${{ matrix.rpm_arch }}.rpm \
+            Proton_Drive_Sync*.AppImage \
+            Proton_Drive_Sync*.flatpak
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  upload-gemfury:
+    needs: package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Download packages from release
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p packages
+          gh release download "v${VERSION}" -p "*.deb" -p "*.rpm" -D packages/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload to Gemfury
+        run: ./packaging/scripts/upload-gemfury.sh
+        env:
+          GEMFURY_TOKEN: ${{ secrets.GEMFURY_TOKEN }}
+          PACKAGES_DIR: packages
+
+  update-homebrew:
+    needs: package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Homebrew tap update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.TAP_UPDATE_TOKEN }}
+          repository: DamianB-BitFlipper/homebrew-tap
+          event-type: update-formula
+          client-payload: '{"version": "${{ github.event.release.tag_name }}", "prerelease": ${{ github.event.release.prerelease }}}'
+
+  update-nix-flake:
+    needs: package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ github.token }}
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Download release artifacts
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p artifacts
+          gh release download "v${VERSION}" \
+            -p "proton-drive-sync-linux-x64.tar.gz" \
+            -p "proton-drive-sync-linux-arm64.tar.gz" \
+            -p "proton-drive-sync-darwin-arm64.tar.gz" \
+            -p "proton-drive-sync-darwin-x64.tar.gz" \
+            -D artifacts/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update flake.nix
+        run: ./packaging/scripts/update-nix-flake.sh "${{ steps.version.outputs.version }}"
+        env:
+          ARTIFACTS_DIR: artifacts
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flake.nix
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "nix: update flake to v${{ steps.version.outputs.version }}"
+          git push
+
+  publish-aur:
+    needs: package
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - prerelease: true
+            pkgname: proton-drive-sync-prerelease-bin
+            pkgdesc: 'Sync local directories to Proton Drive cloud storage (prerelease)'
+          - prerelease: false
+            pkgname: proton-drive-sync-bin
+            pkgdesc: 'Sync local directories to Proton Drive cloud storage'
+
+    steps:
+      # Only run the matrix entry that matches the release type
+      - name: Check if should run
+        id: check
+        run: |
+          if [[ "${{ github.event.release.prerelease }}" != "${{ matrix.prerelease }}" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Get version
+        if: steps.check.outputs.skip != 'true'
+        id: version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Download Linux artifacts from release
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p artifacts
+          gh release download "v${VERSION}" \
+            -p "proton-drive-sync-linux-x64.tar.gz" \
+            -p "proton-drive-sync-linux-arm64.tar.gz" \
+            -D artifacts/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Generate PKGBUILD
+        if: steps.check.outputs.skip != 'true'
+        run: ./packaging/scripts/generate-aur-pkgbuild.sh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PACKAGE_NAME: ${{ matrix.pkgname }}
+          PACKAGE_DESC: ${{ matrix.pkgdesc }}
+          ARTIFACTS_DIR: artifacts
+
+      - name: Publish to AUR
+        if: steps.check.outputs.skip != 'true'
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
+        with:
+          pkgname: ${{ matrix.pkgname }}
+          pkgbuild: ./PKGBUILD
+          commit_username: ${{ vars.AUR_USERNAME }}
+          commit_email: ${{ vars.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: 'Update to v${{ steps.version.outputs.version }}'
+          ssh_keyscan_types: ed25519,rsa,ecdsa
